@@ -186,7 +186,7 @@ class SB3Env(gym.Env):
         # 获取时间戳
         self.unique_id = int(time.time() * 1000)
         
-        print(f'Time {self.unique_id}: Step {self.current_step:03}: Target: {self.target_temp}, Actual: {self.actual_temp:.3f}, Cooling: {self.cooling_temp:.3f}, Heat DC: {self.heat_dc:07.3f}, Cool DC: {self.cool_dc:07.3f}, Dist DC: {self.dist_dc:07.3f}, Reward: {self.last_reward:.3f}, Done: {done}')
+        print(f'Time {self.unique_id}: Step {self.current_step:03}: Target: {self.target_temp}, Actual: {self.actual_temp:.3f}, Cooling: {self.cooling_temp:.3f}, Action: {action_value:07.3f}, Heat DC: {self.heat_dc:07.3f}, Cool DC: {self.cool_dc:07.3f}, Dist DC: {self.dist_dc:07.3f}, Reward: {self.last_reward:.3f}, Done: {done}')
 
         # 记录当前步骤到CSV
         self.step_csv_writer.writerow([self.unique_id, self.current_step, self.target_temp, self.actual_temp, self.cooling_temp, self.heat_dc, self.cool_dc, self.dist_dc, self.last_reward, self.previous_actual_temp, self.previous_cooling_temp, self.steps_within_target_range, self.steps_outside_critical_range, done])
