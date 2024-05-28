@@ -12,7 +12,7 @@ from env_utils import EnvUtils
 
 # 定义一个自定义环境，继承gym.Env类
 class SB3Env(gym.Env):
-    def __init__(self, broker_address, port, temp_topic, pwm_topic, target_temp_min, target_temp_max, algorithm, action_space_type='box', episode_max_steps=1000, render_mode='human', discrete_step=10, temp_config=None):
+    def __init__(self, broker_address, port, temp_topic, pwm_topic, target_temp_min, target_temp_max, algorithm, action_space_type='box', episode_max_steps=1000, render_mode='human', discrete_step=10, temp_config=None, dist_config=None):
     
         super(SB3Env, self).__init__()
         
