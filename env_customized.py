@@ -106,7 +106,7 @@ class CustomEnv(gym.Env):
         episode_file_name = f'logs_{self.algorithm}/episodes_data_{self.unique_id}.csv'
         self.step_csv_file = open(step_file_name, mode='w', newline='')
         self.step_csv_writer = csv.writer(self.step_csv_file)
-        self.step_csv_writer.writerow(['Step Time', 'Step', 'Target Temp', 'Actual Temp', 'Cooling Temp', 'Output', 'Heat DC', 'Cool DC', 'Dist DC', 'Last Reward', 'Previous Actual Temp', 'Previous Cooling Temp', 'Steps Within Target Range', 'Steps Outside Critical Range', 'Done'])
+        self.step_csv_writer.writerow(['Step Time', 'Step', 'Target Temp', 'Actual Temp', 'Cooling Temp', 'Action', 'Heat DC', 'Cool DC', 'Dist DC', 'Last Reward', 'Previous Actual Temp', 'Previous Cooling Temp', 'Steps Within Target Range', 'Steps Outside Critical Range', 'Done'])
         self.episode_csv_file = open(episode_file_name, mode='w', newline='')
         self.episode_csv_writer = csv.writer(self.episode_csv_file)
         self.episode_csv_writer.writerow(['Episode Time', 'Episode', 'Initial Temp', 'Target Temp', 'Total Reward', 'Mean Reward per Step', 'Total Steps', 'First Within Target Step'])
@@ -163,11 +163,11 @@ class CustomEnv(gym.Env):
         truncated = False
 
         if self.algorithm == 'Random':
-            output = np.random.uniform(-1, 1) * 100
+            action_value = np.random.uniform(-1, 1) * 100
         else:
-            output = self.controller.compute(self.target_temp, self.actual_temp)
+            action_value = self.controller.compute(self.target_temp, self.actual_temp)
 
-        heat_dc, cool_dc = (0, abs(output)) if output < 0 else (abs(output), 0)
+        heat_dc, cool_dc = (0, abs(action_value)) if action_value < 0 else (abs(action_value), 0)
 
         if self.dist_config and self.current_dist_steps == 0:
             if np.random.rand() < self.chance_of_zero:
@@ -203,7 +203,7 @@ class CustomEnv(gym.Env):
         if self.current_step >= self.episode_max_steps:
             truncated = True  # Truncated due to reaching max steps
 
-        # output
+        # action_value
         info = {}  # 可以添加额外的调试信息或状态信息
         observation = np.array([self.target_temp, self.actual_temp, self.cooling_temp])
 
@@ -213,7 +213,7 @@ class CustomEnv(gym.Env):
         print(f'Time {self.unique_id}: Step {self.current_step:03}: Target: {self.target_temp}, Actual: {self.actual_temp:.3f}, Cooling: {self.cooling_temp:.3f}, Heat DC: {self.heat_dc:07.3f}, Cool DC: {self.cool_dc:07.3f}, Dist DC: {self.dist_dc:07.3f}, Reward: {self.last_reward:.3f}, Done: {done}')
 
         # 记录当前步骤到CSV
-        self.step_csv_writer.writerow([self.unique_id, self.current_step, self.target_temp, self.actual_temp, self.cooling_temp, output, self.heat_dc, self.cool_dc, self.dist_dc, self.last_reward, self.previous_actual_temp, self.previous_cooling_temp, self.steps_within_target_range, self.steps_outside_critical_range, done])
+        self.step_csv_writer.writerow([self.unique_id, self.current_step, self.target_temp, self.actual_temp, self.cooling_temp, action_value, self.heat_dc, self.cool_dc, self.dist_dc, self.last_reward, self.previous_actual_temp, self.previous_cooling_temp, self.steps_within_target_range, self.steps_outside_critical_range, done])
         self.step_csv_file.flush()
 
         # 更新奖励总和和步数
