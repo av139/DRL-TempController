@@ -36,6 +36,11 @@ random:
   total_timesteps: 25000                               # 训练过程中的总时间步数
   episode_max_steps: 500                               # 每个环节的最大步数
 
+# Oven配置部分
+oven:
+  total_timesteps: 25000                               # 训练过程中的总时间步数
+  episode_max_steps: 500                               # 每个环节的最大步数
+
 # fuzzy配置部分
 fuzzy:
   total_timesteps: 25000                               # 训练过程中的总时间步数

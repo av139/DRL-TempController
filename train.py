@@ -107,6 +107,40 @@ def run_random(config):
             env.close()
         print("Environment successfully closed.")
 
+def run_oven(config):
+    env = None
+    try:
+        oven_config = config['oven']
+        general_config = config['general']
+        temp_config = config['temp_config']
+        dist_config = config['dist_config']
+        total_timesteps = oven_config['total_timesteps']
+        n_eval_episodes = general_config.get('n_eval_episodes', 5)
+
+        env = CustomEnv(
+            broker_address=general_config['broker_address'],
+            port=general_config['port'],
+            temp_topic=general_config['temp_topic'],
+            pwm_topic=general_config['pwm_topic'],
+            target_temp_min=general_config['target_temp_min'],
+            target_temp_max=general_config['target_temp_max'],
+            episode_max_steps=oven_config['episode_max_steps'],
+            algorithm='Oven',
+            temp_config=temp_config,
+            dist_config=dist_config
+        )
+        
+        with SummaryWriter(log_dir="./tensorboard/Oven/") as writer:
+            evaluate_env(env, writer, total_timesteps, n_eval_episodes, dist_config)
+
+    except KeyboardInterrupt:
+        print("Program interrupted by user.")
+
+    finally:
+        if env is not None:
+            env.close()
+        print("Environment successfully closed.")
+
 def run_fuzzy(config):
     env = None
     try:
@@ -699,6 +733,8 @@ def main():
         run_fuzzy(config)
     elif algorithm == 'Random':
         run_random(config)
+    elif algorithm == 'Oven': 
+        run_oven(config)
     elif algorithm == 'SAC':
         if action_space_type != 'box':
             print("Warning: SAC only supports 'box' action_space_type. Ignoring and continuing.")

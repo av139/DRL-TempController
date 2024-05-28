@@ -164,6 +164,11 @@ class CustomEnv(gym.Env):
 
         if self.algorithm == 'Random':
             action_value = np.random.uniform(-1, 1) * 100
+        elif self.algorithm == 'Oven':
+            if self.actual_temp < self.target_temp:
+                action_value = 1
+            else:
+                action_value = -1
         else:
             action_value = self.controller.compute(self.target_temp, self.actual_temp)
 
