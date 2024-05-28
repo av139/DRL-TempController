@@ -19,6 +19,7 @@ class SB3Env(gym.Env):
         self.temp_config = temp_config
         self.render_mode = render_mode
         self.algorithm = algorithm
+        self.action_space_type = action_space_type
         self.discrete_step = discrete_step
         
         self.dist_config = dist_config
@@ -153,7 +154,7 @@ class SB3Env(gym.Env):
             self.current_dist_steps -= 1    
         
         self.mqtt_client.publish_pwm(heat_dc, cool_dc, self.dist_dc)
-        """这里缺少将负数的dist pwm信号剪切的逻辑"""
+
         time.sleep(2)  # 延时2秒，等待温度变化
 
         # get new temp

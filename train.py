@@ -186,6 +186,7 @@ def run_sac(config):
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
     action_space_type = 'box'  # SAC只支持Box动作空间类型    
     model = None
+    env = None
     try:
         # 创建环境实例
         env = create_sb3_env(general_config, sac_config, 'SAC', action_space_type, temp_config, dist_config, is_eval=False)
@@ -248,7 +249,8 @@ def run_sac(config):
     finally:
         if model:
             model.save("sac_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")
 
 def run_ppo(config):
@@ -260,6 +262,7 @@ def run_ppo(config):
     # PPO支持Box和Discrete动作空间类型，默认连续问题Box
     action_space_type = general_config.get('action_space_type', 'box')     
     model = None
+    env = None
     try:
         # 创建环境实例
         env = create_sb3_env(general_config, ppo_config, 'PPO', action_space_type, temp_config, dist_config, is_eval=False)
@@ -321,7 +324,8 @@ def run_ppo(config):
     finally:
         if model:
             model.save("ppo_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")
 
 def run_dqn(config):
@@ -332,6 +336,7 @@ def run_dqn(config):
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
     action_space_type = 'discrete'  # DQN只支持Discrete动作空间类型
     model = None
+    env = None
     try:
         env = create_sb3_env(general_config, dqn_config, 'DQN', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
@@ -388,7 +393,8 @@ def run_dqn(config):
     finally:
         if model:
             model.save("dqn_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")
 
 def run_a2c(config):
@@ -400,6 +406,7 @@ def run_a2c(config):
     # A2C支持Box和Discrete动作空间类型，默认连续问题Box
     action_space_type = general_config.get('action_space_type', 'box')
     model = None
+    env = None
     try:
         # 创建环境实例
         env = create_sb3_env(general_config, a2c_config, 'A2C', action_space_type, temp_config, dist_config, is_eval=False)
@@ -457,7 +464,8 @@ def run_a2c(config):
     finally:
         if model:
             model.save("a2c_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")
 
 def run_ddpg(config):
@@ -468,6 +476,7 @@ def run_ddpg(config):
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
     action_space_type = 'box'  # DDPG只支持Box动作空间类型    
     model = None
+    env = None
     try:
         # 创建环境实例
         env = create_sb3_env(general_config, ddpg_config, 'DDPG', action_space_type, temp_config, dist_config, is_eval=False)
@@ -522,7 +531,8 @@ def run_ddpg(config):
     finally:
         if model:
             model.save("ddpg_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")
 
 def run_td3(config):
@@ -533,6 +543,7 @@ def run_td3(config):
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
     action_space_type = 'box'  # TD3只支持Box动作空间类型    
     model = None
+    env = None
     try:
         # 创建环境实例
         env = create_sb3_env(general_config, td3_config, 'TD3', action_space_type, temp_config, dist_config, is_eval=False)
@@ -591,7 +602,8 @@ def run_td3(config):
     finally:
         if model:
             model.save("td3_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")
 
 def run_trpo(config):
@@ -602,6 +614,7 @@ def run_trpo(config):
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
     action_space_type = general_config.get('action_space_type', 'box')
     model = None
+    env = None
     try:
         # 创建环境实例
         env = create_sb3_env(general_config, trpo_config, 'TRPO', action_space_type, temp_config, dist_config, is_eval=False)
@@ -662,7 +675,8 @@ def run_trpo(config):
     finally:
         if model:
             model.save("trpo_model")
-        env.close()
+        if env:  # 确保env已定义
+            env.close()
         print("Environment successfully closed.")        
 
 def main():
