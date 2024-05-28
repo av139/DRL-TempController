@@ -5,7 +5,7 @@ general:
   temp_topic: "temperature_control/temp_data"          # 温度数据的MQTT主题
   pwm_topic: "temperature_control/pwm_control"         # PWM控制的MQTT主题
   target_temp_min: 25                                  # 目标温度的最小值
-  target_temp_max: 50                                  # 目标温度的最大值
+  target_temp_max: 45                                  # 目标温度的最大值
   algorithm: "Fuzzy"                                  # 使用的算法（可以是"Random", "Fuzzy", "PID", "SAC", "PPO", "DQN", "A2C", "DDPG", "TD3", "TRPO"）
   action_space_type: "box"                             # 动作空间类型，可选值为"box"或"discrete" (目前支持PPO、A2C、TRPO来进行选择)
   discrete_step: 20                                    # 离散步长（单位：%）
@@ -18,11 +18,11 @@ temp_config:
   critical_range_steps: 50                             # 临界范围步数
   target_temp_range: 5                                 # choose tatrget temp min_diff 目标温度范围，详见choose_target_temp方法文档
   target_temp_low: 25                                  # target temp的下界，用于创建观测空间
-  target_temp_high: 50                                 # target temp的上界，用于创建观测空间
+  target_temp_high: 45                                 # target temp的上界，用于创建观测空间
   actual_temp_low: 15                                  # actual temp的下界，用于创建观测空间
-  actual_temp_high: 60                                 # actual temp的上界，用于创建观测空间
+  actual_temp_high: 55                                 # actual temp的上界，用于创建观测空间
   cooling_temp_low: 15                                 # cooling temp的下界，用于创建观测空间
-  cooling_temp_high: 60                                # cooling temp的上界，用于创建观测空间
+  cooling_temp_high: 55                                # cooling temp的上界，用于创建观测空间
 
 # 添加dist_config配置块
 dist_config:
