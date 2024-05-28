@@ -13,7 +13,7 @@ general:
 
 # 温度相关配置部分
 temp_config:
-  max_diff: 15                                         # 最大温差 / choose tatrget temp max_diff
+  max_diff: 15                                         # 最大温差 / choose tatrget temp max_diff / 用于在env.utils计算是否超过最温差 以及choose_target_temp方法中确认目标温度取值范围
   temp_tolerance: 0.3                                  # 温度容差 target_temp_tolerance (target_temp ± tolerance)
   critical_range_steps: 50                             # 临界范围步数
   target_temp_range: 5                                 # choose tatrget temp min_diff 目标温度范围，详见choose_target_temp方法文档
