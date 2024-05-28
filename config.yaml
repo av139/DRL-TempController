@@ -152,7 +152,7 @@ a2c:
   ent_coef: 0.0                                        # 默认值：0.0       # 熵系数
   vf_coef: 0.5                                         # 默认值：0.5       # 值函数损失系数
   max_grad_norm: 0.5                                   # 默认值：0.5       # 最大梯度范数
-  rms_prop_eps: 1e-5                                   # 默认值：1e-5     # RMSProp的epsilon值
+  rms_prop_eps: 0.00001                                # 默认值：0.00001   # RMSProp的epsilon值
   use_rms_prop: true                                   # 默认值：true      # 是否使用RMSProp优化器
   use_sde: false                                       # 默认值：false     # 使用状态依赖探索
   sde_sample_freq: -1                                  # 默认值：-1        # 状态依赖探索的采样频率
