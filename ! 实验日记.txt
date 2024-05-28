@@ -167,6 +167,7 @@ total_reward = 0.6 * temp_reward + 0.4 * time_reward
 增加dist_config
 在evaluate中调用dist pwm，在train中不使用dist pwm
 dist pwm的信号选择由dist_min / dist_max / chance_of_zero组成
+mqtt_win关闭时增加一个0值输出
 
 
 3 减少每轮的step数量（500->250）
