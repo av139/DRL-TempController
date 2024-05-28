@@ -9,7 +9,7 @@ general:
   algorithm: "Fuzzy"                                  # 使用的算法（可以是"Random", "Fuzzy", "PID", "SAC", "PPO", "DQN", "A2C", "DDPG", "TD3", "TRPO"）
   action_space_type: "box"                             # 动作空间类型，可选值为"box"或"discrete" (目前支持PPO、A2C、TRPO来进行选择)
   discrete_step: 20                                    # 离散步长（单位：%）
-  n_eval_episodes: 5                                   # 每次评估的episode数量
+  n_eval_episodes: 5                                   # 每次评估的episode数量（控制所有算法的每次评估轮数）
 
 # 温度相关配置部分
 temp_config:
