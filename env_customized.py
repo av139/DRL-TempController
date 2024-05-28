@@ -36,9 +36,9 @@ class FuzzyController:
         self.output = ctrl.Consequent(np.arange(-100, 101, 1), 'output')
 
         # 定义模糊集合
-        self.error['negative'] = fuzz.trimf(self.error.universe, [-30, -15, 0])
-        self.error['zero'] = fuzz.trimf(self.error.universe, [-15, 0, 15])
-        self.error['positive'] = fuzz.trimf(self.error.universe, [0, 15, 30])
+        self.error['negative'] = fuzz.trimf(self.error.universe, [-30, -5, 0])
+        self.error['zero'] = fuzz.trimf(self.error.universe, [-5, 0, 5])
+        self.error['positive'] = fuzz.trimf(self.error.universe, [0, 5, 30])
 
         self.output['cool'] = fuzz.trimf(self.output.universe, [-100, -100, 0])
         self.output['zero'] = fuzz.trimf(self.output.universe, [-100, 0, 100])
