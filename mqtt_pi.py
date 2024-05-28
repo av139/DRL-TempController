@@ -57,7 +57,19 @@ while restart_attempts < MAX_RESTARTS:
 
         def on_message(client, userdata, msg):
             message = str(msg.payload.decode("utf-8"))
-            heat_dc, cool_dc, dist_dc = map(float, message.split(','))
+                        
+            values = message.split(',')
+            
+            if len(values) == 3:
+                heat_dc, cool_dc, dist_dc = map(float, values)
+            elif len(values) == 2:
+                heat_dc, cool_dc = map(float, values)
+                dist_dc = 0  # 默认为0，或根据需要设置其他默认值
+            else:
+                # 处理异常情况，例如日志记录
+                print(f"Received an invalid message: {message}")
+                return            
+            
             pwm_heat.change_duty_cycle(heat_dc)
             pwm_cool.change_duty_cycle(cool_dc)
             pwm_dist.ChangeDutyCycle(dist_dc)  # 添加dist信号的处理

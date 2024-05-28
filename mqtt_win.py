@@ -52,7 +52,7 @@ class MQTTClient:
             self.client.loop_stop()  # 停止网络循环
             print("Sending stop PWM signal...")
             for _ in range(3):
-                self.client.publish(self.pwm_topic, "0,0")  # 尝试发送停止PWM信号
+                self.client.publish(self.pwm_topic, "0,0,0")  # 尝试发送停止PWM信号
                 time.sleep(0.5)
             time.sleep(2)
             self.client.disconnect()  # 尝试断开与MQTT服务器的连接
