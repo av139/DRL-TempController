@@ -1,0 +1,14 @@
+python==3.8.19
+gym==0.26.2
+gymnasium==0.29.1
+matplotlib==3.7.5
+numpy==1.24.4
+paho-mqtt==1.6.1
+pandas==2.0.3
+pyyaml==6.0.1
+sb3-contrib==2.3.0
+scikit-fuzzy==0.4.2
+stable-baselines3==2.3.1
+tensorboard==2.14.0
+tensorboard-data-server==0.7.2
+torch==2.2.2

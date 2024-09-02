@@ -10,7 +10,7 @@ import os
 import time
 from env_utils import EnvUtils
 
-# 定义一个自定义环境，继承gym.Env类
+# Define a custom environment that extends the gym.Env class, used for handling DRL algorithms in SB3
 class SB3Env(gym.Env):
     def __init__(self, broker_address, port, temp_topic, pwm_topic, target_temp_min, target_temp_max, algorithm, action_space_type='box', episode_max_steps=1000, render_mode='human', discrete_step=10, temp_config=None, dist_config=None):
     
@@ -27,7 +27,7 @@ class SB3Env(gym.Env):
         self.current_dist_steps = 0
         self.chance_of_zero = dist_config.get('chance_of_zero', 0) if dist_config else 0
                 
-        # 根据action_space_type选择动作空间
+        # Select action space based on action_space_type
         if action_space_type == 'box':
             self.action_space = spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32)
         elif action_space_type == 'discrete':
@@ -35,7 +35,7 @@ class SB3Env(gym.Env):
         else:
             raise ValueError(f"Unsupported action_space_type: {action_space_type}")
         
-        # 设置观察空间，也就是温度传感器的输出范围，第一个值是target，第二个值是物体上的actual，第三个值是散热器cooling温度        
+        # Set observation space, which represents the output range of the temperature sensors: target, actual on the object, and cooling temperature        
         self.observation_space = spaces.Box(
             low=np.array([self.temp_config['target_temp_low'], self.temp_config['actual_temp_low'], self.temp_config['cooling_temp_low']], dtype=np.float32),
             high=np.array([self.temp_config['target_temp_high'], self.temp_config['actual_temp_high'], self.temp_config['cooling_temp_high']], dtype=np.float32)
@@ -44,28 +44,29 @@ class SB3Env(gym.Env):
         self.target_temp_min = target_temp_min
         self.target_temp_max = target_temp_max
 
-        # episode steps limit
+        # Episode steps limit
         self.episode_max_steps = episode_max_steps
         self.current_step = 0
 
-        # MQTT
+        # MQTT setup
         self.mqtt_client = MQTTClient(broker_address, port, temp_topic, pwm_topic)
         self.mqtt_client.connect()
         
-        self.steps_within_target_range = 0  # 给基于time steps的check done表达的计数器
-        self.steps_outside_critical_range = 0   # 给基于time steps的check done表达的计数器
+        self.steps_within_target_range = 0  # Counter for tracking steps within target range for done checking based on time steps
+        self.steps_outside_critical_range = 0  # Counter for tracking steps outside critical range for done checking based on time steps
         self.recovery_flag = False
-        self.last_reward = 0.0  # 初始化最新奖励值
-        self.current_episode = 0  # 初始化episode计数器
-        self.first_within_target_step = None  # 记录第一次实际温度在目标温度范围内的步数
-        self.time_outside_target_range = 0  # 给基于time steps的reward表达的计数器
+        self.last_reward = 0.0  # Initialize last reward value
+        self.current_episode = 0  # Initialize episode counter
+        self.first_within_target_step = None  # Record the first step within the target temperature range
+        self.time_outside_target_range = 0  # Counter for tracking time outside the target range for reward calculation
         
-        # CSV
+        # Create CSV files for logging and write headers
         if not os.path.exists(f'logs_{self.algorithm}'):
             os.makedirs(f'logs_{self.algorithm}')
         self.unique_id = int(time.time() * 1000)    
-        step_file_name = f'logs_{self.algorithm}/steps_data_{self.algorithm}_{self.action_space_type}_{self.unique_id}.csv'
-        episode_file_name = f'logs_{self.algorithm}/episodes_data_{self.algorithm}_{self.action_space_type}_{self.unique_id}.csv'
+        step_file_name = f'logs_{self.algorithm}/steps_data_{self.algorithm}_{self.action_space_type}_{self.unique_id}.csv'  # Log each step
+        episode_file_name = f'logs_{self.algorithm}/episodes_data_{self.algorithm}_{self.action_space_type}_{self.unique_id}.csv'  # Log each episode
+        # Write headers
         self.step_csv_file = open(step_file_name, mode='w', newline='')
         self.step_csv_writer = csv.writer(self.step_csv_file)
         self.step_csv_writer.writerow(['Step Time', 'Step', 'Target Temp', 'Actual Temp', 'Cooling Temp', 'Action', 'Heat DC', 'Cool DC', 'Dist DC', 'Last Reward', 'Previous Actual Temp', 'Previous Cooling Temp', 'Steps Within Target Range', 'Steps Outside Critical Range', 'Done'])
@@ -73,7 +74,7 @@ class SB3Env(gym.Env):
         self.episode_csv_writer = csv.writer(self.episode_csv_file)
         self.episode_csv_writer.writerow(['Episode Time', 'Episode', 'Initial Temp', 'Target Temp', 'Total Reward', 'Mean Reward per Step', 'Total Steps', 'First Within Target Step'])
         
-        # 立即刷新文件，确保表头被写入
+        # Immediately flush files to ensure headers are written
         self.step_csv_file.flush()
         self.episode_csv_file.flush()        
 
@@ -83,29 +84,30 @@ class SB3Env(gym.Env):
         self.dist_dc = 0
         self.current_dist_steps = 0
         
-        # 尝试获取温度数据，增加等待逻辑
-        max_wait_time = 10  # 最大等待时间（秒）
+        max_wait_time = 10  # Maximum wait time (seconds)
         wait_time = 0
-        interval = 0.5  # 每次检查的间隔时间（秒）
+        interval = 0.5  # Time interval for each check (seconds)
 
+        # Try to obtain temperature data, avoiding zero readings due to potential issues on the Raspberry Pi side
         while wait_time < max_wait_time:
             self.actual_temp, self.cooling_temp = self.mqtt_client.get_temperature()
             if self.actual_temp != 0 and self.cooling_temp != 0:
-                break
+                break  # Exit loop when valid temperature data is obtained
             time.sleep(interval)
             wait_time += interval
 
+        # Raise an error if valid temperature data is not obtained within max_wait_time
         if self.actual_temp == 0 and self.cooling_temp == 0:
             raise ValueError("Failed to get temperature from MQTT client within the maximum wait time.")
 
-        # 记录日志，确认获取到的温度值
+        # Log the obtained temperature values
         print(f"reset: Fetched actual_temp={self.actual_temp}, cooling_temp={self.cooling_temp} from MQTT")
         
-        # reset the target_temp
+        # Determine target temperature based on obtained temperature data
         self.target_temp = EnvUtils.choose_target_temp(self.actual_temp, self.target_temp_min, self.target_temp_max, self.temp_config)
         
-        # 记录日志
-        print(f"reset: actual_temp={self.actual_temp}, target_temp={self.target_temp}") 
+        # Log the determined target temperature
+        print(f"reset: actual_temp={self.actual_temp}, target_temp={self.target_temp}")    
 
         # Initialize counters and buffers
         self.current_step = 0
@@ -113,93 +115,94 @@ class SB3Env(gym.Env):
         self.steps_outside_critical_range = 0
         self.previous_actual_temp = None
         self.previous_cooling_temp = None   
-        self.first_within_target_step = None  # 记录每个episode内第一次进入target temp范围内的步数
+        self.first_within_target_step = None  # Record the first step within the target temperature range in each episode
         self.total_reward = 0
-        self.initial_temp = self.actual_temp  # 记录初始温度
+        self.initial_temp = self.actual_temp  # Record initial temperature
         self.time_outside_target_range = 0
         
         return np.array([self.target_temp, self.actual_temp, self.cooling_temp]), {}
 
 
     def step(self, action):
-        # save old temp
+        # Save previous temperatures
         self.previous_actual_temp = self.actual_temp
         self.previous_cooling_temp = self.cooling_temp    
         
-        # step counter in each episode 
+        # Step counter for each episode 
         self.current_step += 1
         
-        # time out flag
+        # Timeout flag
         truncated = False
         
-        # 用于检查 self.action_space 是否是 spaces.Discrete 类型的实例
-        # 离散和连续任务有不同的action映射到PWM信号的方法，需要区分
-        # 将action信号首先映射到 -1 ~ +1区间
+        # Check if self.action_space is an instance of spaces.Discrete
+        # Discrete and continuous tasks map actions to PWM signals differently, so this needs to be distinguished
+        # Map the action signal to the range -1 to +1
         if isinstance(self.action_space, spaces.Discrete):
-            action_value = (action - (200 // self.discrete_step // 2)) / (200 // self.discrete_step // 2) # 当是Discrete，离散动作
+            action_value = (action - (200 // self.discrete_step // 2)) / (200 // self.discrete_step // 2)  # Discrete action space
         else:
-            action_value = action[0] # 当是Box，连续动作
+            action_value = action[0]  # Continuous action space
             
-        # 再将位于-1 ~ +1区间的信号转换成-100% ~ +100%的PWM信号，并分配给加热/散热元件
-        # 加热和散热元件不同时工作
+        # Then convert the signal in the range -1 to +1 to PWM signals in the range -100% to +100%, and assign them to heating/cooling elements
+        # Heating and cooling elements do not work simultaneously
         heat_dc, cool_dc = (0, abs(action_value) * 100) if action_value < 0 else (abs(action_value) * 100, 0)
         
+        # Disturbance module
         if self.dist_config and self.current_dist_steps == 0:
-            if np.random.rand() < self.chance_of_zero:
+            if np.random.rand() < self.chance_of_zero:  # Decide whether to apply disturbance based on the probability of zero
                 self.dist_dc = 0
             else:
-                self.dist_dc = np.random.uniform(self.dist_config['dist_min'], self.dist_config['dist_max'])
+                self.dist_dc = np.random.uniform(self.dist_config['dist_min'], self.dist_config['dist_max'])  # Randomly select a PWM signal value within the range
             self.current_dist_steps = self.dist_config['step_duration'] - 1
         elif self.current_dist_steps > 0:
-            self.current_dist_steps -= 1    
+            self.current_dist_steps -= 1  # Countdown for current_dist_steps to determine how many steps remain before changing the disturbance value  
         
         self.mqtt_client.publish_pwm(heat_dc, cool_dc, self.dist_dc)
 
-        time.sleep(2)  # 延时2秒，等待温度变化
+        time.sleep(2)  # Delay to wait for the PWM signal to be executed
 
-        # get new temp
+        # Get new temperature
         self.actual_temp, self.cooling_temp = self.mqtt_client.get_temperature()
         self.heat_dc = heat_dc
-        self.cool_dc = cool_dc     
-
-        # counter_update & reward & done
-        # 调用env_utils.py来计算reward和done，以及检查是否在target_temp范围内
-        self.steps_within_target_range, self.steps_outside_critical_range, within_target_range = EnvUtils.update_temperature_counters(self.target_temp, self.actual_temp, self.steps_within_target_range, self.steps_outside_critical_range, self.temp_config)
+        self.cool_dc = cool_dc    
         
-        # 记录第一次进入目标范围内的步数
+        # Update counters based on temperature, check if the temperature is within the range, see env_utils.py for details
+        self.steps_within_target_range, self.steps_outside_critical_range, within_target_range = EnvUtils.update_temperature_counters(self.target_temp, self.actual_temp, self.steps_within_target_range, self.steps_outside_critical_range, self.temp_config)  
+        
+        # Record the first step within the target range
         if self.first_within_target_step is None and within_target_range:
             self.first_within_target_step = self.current_step
-        
+
+        # Use env_utils.py to calculate reward and done, and check if within the target range        
         reward, self.time_outside_target_range = EnvUtils.compute_reward(self.target_temp, self.actual_temp, self.time_outside_target_range, self.episode_max_steps, self.temp_config)
         self.last_reward = reward
         
         done = EnvUtils.check_done(self.steps_within_target_range, self.steps_outside_critical_range, self.temp_config)
         
-        # timeout 逻辑判定
+        # Timeout logic
         if self.current_step >= self.episode_max_steps:
             truncated = True  # Truncated due to reaching max steps
 
-        # output
-        info = {}  # 可以添加额外的调试信息或状态信息
+        # Output
+        info = {}  # Can be used to add additional debug or state information
         observation = np.array([self.target_temp, self.actual_temp, self.cooling_temp])
 
-        # 获取时间戳
+        # Get timestamp
         self.unique_id = int(time.time() * 1000)
         
         print(f'Time {self.unique_id}: Step {self.current_step:03}: Target: {self.target_temp}, Actual: {self.actual_temp:.3f}, Cooling: {self.cooling_temp:.3f}, Action: {action_value:07.3f}, Heat DC: {self.heat_dc:07.3f}, Cool DC: {self.cool_dc:07.3f}, Dist DC: {self.dist_dc:07.3f}, Reward: {self.last_reward:.3f}, Done: {done}')
 
-        # 记录当前步骤到CSV
+        # Log current step to CSV
         self.step_csv_writer.writerow([self.unique_id, self.current_step, self.target_temp, self.actual_temp, self.cooling_temp, action_value, self.heat_dc, self.cool_dc, self.dist_dc, self.last_reward, self.previous_actual_temp, self.previous_cooling_temp, self.steps_within_target_range, self.steps_outside_critical_range, done])
         self.step_csv_file.flush()
 
-        # 更新奖励总和和步数
+        # Update total reward and step count
         self.total_reward += reward
 
         if done or truncated:
-            # 记录episode结果到CSV
-            # 计算每个episode周期内的单步平均奖励值
+            # Log episode results to CSV
+            # Calculate the mean reward per step for the episode
             mean_reward = self.total_reward / self.current_step if self.current_step != 0 else 0
-            # 记录每个episode的结束时间
+            # Record the end time of the episode
             self.unique_id = int(time.time() * 1000)
             # Episode Time, Episode, Initial Temp, Target Temp, Total Reward, Mean Reward per Step, Total Steps, First Within Target Step
             self.episode_csv_writer.writerow([self.unique_id, self.current_episode, self.initial_temp, self.target_temp, self.total_reward, mean_reward, self.current_step, self.first_within_target_step])
@@ -208,10 +211,10 @@ class SB3Env(gym.Env):
         return observation, reward, done, truncated, info
 
     def close(self):
-        """结束环境"""
+        """Terminate the environment"""
         super().close()
         self.step_csv_file.flush()
         self.step_csv_file.close()
         self.episode_csv_file.flush()
         self.episode_csv_file.close()
-        self.mqtt_client.disconnect()  # 断开与MQTT服务器的连接
+        self.mqtt_client.disconnect()  # Disconnect from the MQTT broker

@@ -20,22 +20,23 @@ class PIDController:
         self.derivative = 0
 
     def compute(self, target_temp, actual_temp):
+        # Implementation of the PID controller
         error = target_temp - actual_temp
         self.integral += error
         self.derivative = error - self.previous_error
         self.previous_error = error
 
         output = (self.kp * error) + (self.ki * self.integral) + (self.kd * self.derivative)
-        output = max(min(output, 100), -100)
+        output = max(min(output, 100), -100)  # Clamp the PID output
         return output
 
 class FuzzyController:
     def __init__(self):
-        # 定义模糊变量
+        # Define fuzzy variables
         self.error = ctrl.Antecedent(np.arange(-30, 31, 1), 'error')
         self.output = ctrl.Consequent(np.arange(-100, 101, 1), 'output')
 
-        # 定义模糊集合
+        # Define fuzzy sets
         self.error['negative'] = fuzz.trimf(self.error.universe, [-30, -5, 0])
         self.error['zero'] = fuzz.trimf(self.error.universe, [-5, 0, 5])
         self.error['positive'] = fuzz.trimf(self.error.universe, [0, 5, 30])
@@ -44,7 +45,7 @@ class FuzzyController:
         self.output['zero'] = fuzz.trimf(self.output.universe, [-100, 0, 100])
         self.output['heat'] = fuzz.trimf(self.output.universe, [0, 100, 100])
 
-        # 定义规则
+        # Define rules
         self.rule1 = ctrl.Rule(self.error['negative'], self.output['cool'])
         self.rule2 = ctrl.Rule(self.error['zero'], self.output['zero'])
         self.rule3 = ctrl.Rule(self.error['positive'], self.output['heat'])
@@ -73,6 +74,7 @@ class CustomEnv(gym.Env):
         self.current_dist_steps = 0
         self.chance_of_zero = dist_config.get('chance_of_zero', 0) if dist_config else 0
         
+        # Set action space and observation space
         self.action_space = spaces.Box(low=-1, high=1, shape=(1,), dtype=np.float32)
         self.observation_space = spaces.Box(
             low=np.array([self.temp_config['target_temp_low'], self.temp_config['actual_temp_low'], self.temp_config['cooling_temp_low']], dtype=np.float32),
@@ -96,21 +98,21 @@ class CustomEnv(gym.Env):
         self.episode_max_steps = episode_max_steps
         self.current_step = 0
         self.total_reward = 0
-        self.current_episode = 0  # 初始化episode计数器
+        self.current_episode = 0  # Initialize episode counter
 
-        # CSV
+        # Create CSV files for logging and write headers
         if not os.path.exists(f'logs_{self.algorithm}'):
             os.makedirs(f'logs_{self.algorithm}')
-        self.unique_id = int(time.time() * 1000)
-        step_file_name = f'logs_{self.algorithm}/steps_data_{self.unique_id}.csv'
-        episode_file_name = f'logs_{self.algorithm}/episodes_data_{self.unique_id}.csv'
+        self.unique_id = int(time.time() * 1000)  # Timestamp in milliseconds
+        step_file_name = f'logs_{self.algorithm}/steps_data_{self.unique_id}.csv'  # Log each step
+        episode_file_name = f'logs_{self.algorithm}/episodes_data_{self.unique_id}.csv'  # Log each episode
         self.step_csv_file = open(step_file_name, mode='w', newline='')
         self.step_csv_writer = csv.writer(self.step_csv_file)
         self.step_csv_writer.writerow(['Step Time', 'Step', 'Target Temp', 'Actual Temp', 'Cooling Temp', 'Action', 'Heat DC', 'Cool DC', 'Dist DC', 'Last Reward', 'Previous Actual Temp', 'Previous Cooling Temp', 'Steps Within Target Range', 'Steps Outside Critical Range', 'Done'])
         self.episode_csv_file = open(episode_file_name, mode='w', newline='')
         self.episode_csv_writer = csv.writer(self.episode_csv_file)
         self.episode_csv_writer.writerow(['Episode Time', 'Episode', 'Initial Temp', 'Target Temp', 'Total Reward', 'Mean Reward per Step', 'Total Steps', 'First Within Target Step'])
-        # 立即刷新文件，确保表头被写入
+        # Immediately flush files to ensure headers are written
         self.step_csv_file.flush()
         self.episode_csv_file.flush()
 
@@ -119,27 +121,29 @@ class CustomEnv(gym.Env):
         self.dist_dc = 0
         self.current_dist_steps = 0
             
-        # 尝试获取温度数据，增加等待逻辑
-        max_wait_time = 10  # 最大等待时间（秒）
+        max_wait_time = 10  # Maximum wait time (seconds)
         wait_time = 0
-        interval = 0.5  # 每次检查的间隔时间（秒）
+        interval = 0.5  # Time interval for each check (seconds)
 
+        # Try to obtain temperature data, avoiding zero readings due to potential issues on the Raspberry Pi side
         while wait_time < max_wait_time:
             self.actual_temp, self.cooling_temp = self.mqtt_client.get_temperature()
             if self.actual_temp != 0 and self.cooling_temp != 0:
-                break
+                break  # Exit loop when valid temperature data is obtained
             time.sleep(interval)
             wait_time += interval
 
+        # Raise an error if valid temperature data is not obtained within max_wait_time
         if self.actual_temp == 0 and self.cooling_temp == 0:
             raise ValueError("Failed to get temperature from MQTT client within the maximum wait time.")
 
-        # 记录日志，确认获取到的温度值
+        # Log the obtained temperature values
         print(f"reset: Fetched actual_temp={self.actual_temp}, cooling_temp={self.cooling_temp} from MQTT")
     
+        # Determine target temperature based on obtained temperature data
         self.target_temp = EnvUtils.choose_target_temp(self.actual_temp, self.target_temp_min, self.target_temp_max, self.temp_config)
         
-        # 记录日志
+        # Log the determined target temperature
         print(f"reset: actual_temp={self.actual_temp}, target_temp={self.target_temp}")        
         
         # Initialize counters and buffers
@@ -148,14 +152,15 @@ class CustomEnv(gym.Env):
         self.steps_outside_critical_range = 0
         self.previous_actual_temp = None
         self.previous_cooling_temp = None   
-        self.first_within_target_step = None
+        self.first_within_target_step = None  # Record the first step within the target temperature range in each episode
         self.total_reward = 0
-        self.initial_temp = self.actual_temp  # 记录初始温度
+        self.initial_temp = self.actual_temp  # Record initial temperature
         self.time_outside_target_range = 0
         
         return np.array([self.target_temp, self.actual_temp, self.cooling_temp]), {}
 
     def step(self, action=None):
+        # Record the temperature data from the previous step
         self.previous_actual_temp = self.actual_temp
         self.previous_cooling_temp = self.cooling_temp    
         
@@ -163,69 +168,72 @@ class CustomEnv(gym.Env):
         truncated = False
 
         if self.algorithm == 'Random':
-            action_value = np.random.uniform(-1, 1) * 100
-        elif self.algorithm == 'Oven':
+            action_value = np.random.uniform(-1, 1) * 100  # For the Random method, randomly choose an action
+        elif self.algorithm == 'Oven':  # On-Off Controller
             if self.actual_temp < self.target_temp:
-                action_value = 100
+                action_value = 100  # If the temperature is below the target, heat at full power
             else:
-                action_value = -100
+                action_value = -100  # If the temperature is above the target, cool at full power
         else:
-            action_value = self.controller.compute(self.target_temp, self.actual_temp)
+            action_value = self.controller.compute(self.target_temp, self.actual_temp)  # Use Fuzzy or PID function
 
+        # Convert action_value into PWM duty cycle data
         heat_dc, cool_dc = (0, abs(action_value)) if action_value < 0 else (abs(action_value), 0)
 
+        # Disturbance module
         if self.dist_config and self.current_dist_steps == 0:
-            if np.random.rand() < self.chance_of_zero:
+            if np.random.rand() < self.chance_of_zero:  # Decide whether to apply disturbance based on the probability of zero
                 self.dist_dc = 0
             else:
-                self.dist_dc = np.random.uniform(self.dist_config['dist_min'], self.dist_config['dist_max'])
+                self.dist_dc = np.random.uniform(self.dist_config['dist_min'], self.dist_config['dist_max'])  # Randomly select a PWM signal value within the range
             self.current_dist_steps = self.dist_config['step_duration'] - 1
         elif self.current_dist_steps > 0:
-            self.current_dist_steps -= 1      
+            self.current_dist_steps -= 1  # Countdown for current_dist_steps to determine how many steps remain before changing the disturbance value 
         
         self.mqtt_client.publish_pwm(heat_dc, cool_dc, self.dist_dc)
 
-        time.sleep(2)  # Delay to simulate response time
+        time.sleep(2)  # Delay to wait for the PWM signal to be executed
         
-        # get new temp
+        # Get new temperature
         self.actual_temp, self.cooling_temp = self.mqtt_client.get_temperature()
         self.heat_dc = heat_dc
         self.cool_dc = cool_dc    
         
-        # 调用env_utils.py来计算reward和done，以及检查是否在目标范围内
+        # Update counters based on temperature, check if the temperature is within the range, see env_utils.py for details
         self.steps_within_target_range, self.steps_outside_critical_range, within_target_range = EnvUtils.update_temperature_counters(self.target_temp, self.actual_temp, self.steps_within_target_range, self.steps_outside_critical_range, self.temp_config)  
         
-        # 记录第一次进入目标范围内的步数
+        # Record the first step within the target range
         if self.first_within_target_step is None and within_target_range:
             self.first_within_target_step = self.current_step
-        
+
+        # Use env_utils.py to calculate reward and done, and check if within the target range        
         reward, self.time_outside_target_range = EnvUtils.compute_reward(self.target_temp, self.actual_temp, self.time_outside_target_range, self.episode_max_steps, self.temp_config)
         self.last_reward = reward
         
         done = EnvUtils.check_done(self.steps_within_target_range, self.steps_outside_critical_range, self.temp_config)
         
-        # timeout 逻辑判定
+        # Timeout logic
         if self.current_step >= self.episode_max_steps:
             truncated = True  # Truncated due to reaching max steps
 
-        # action_value
-        info = {}  # 可以添加额外的调试信息或状态信息
+        # Update observation data
+        info = {}  # Can be used to add additional debug or state information
         observation = np.array([self.target_temp, self.actual_temp, self.cooling_temp])
 
-        # 获取时间戳
+        # Get timestamp
         self.unique_id = int(time.time() * 1000)
         
         print(f'Time {self.unique_id}: Step {self.current_step:03}: Target: {self.target_temp}, Actual: {self.actual_temp:.3f}, Cooling: {self.cooling_temp:.3f}, Heat DC: {self.heat_dc:07.3f}, Cool DC: {self.cool_dc:07.3f}, Dist DC: {self.dist_dc:07.3f}, Reward: {self.last_reward:.3f}, Done: {done}')
 
-        # 记录当前步骤到CSV
+        # Log current step to CSV
         self.step_csv_writer.writerow([self.unique_id, self.current_step, self.target_temp, self.actual_temp, self.cooling_temp, action_value, self.heat_dc, self.cool_dc, self.dist_dc, self.last_reward, self.previous_actual_temp, self.previous_cooling_temp, self.steps_within_target_range, self.steps_outside_critical_range, done])
         self.step_csv_file.flush()
 
-        # 更新奖励总和和步数
+        # Update total reward and step count
         self.total_reward += reward
 
         if done or truncated:
-            # 记录episode结果到CSV
+            # Log episode results to CSV
             mean_reward = self.total_reward / self.current_step if self.current_step != 0 else 0
             self.unique_id = int(time.time() * 1000)
             self.episode_csv_writer.writerow([self.unique_id, self.current_episode, self.initial_temp, self.target_temp, self.total_reward, mean_reward, self.current_step, self.first_within_target_step])
@@ -234,10 +242,10 @@ class CustomEnv(gym.Env):
         return observation, reward, done, truncated, info        
 
     def close(self):
-        """结束环境"""
+        """Terminate the environment"""
         super().close()
         self.step_csv_file.flush()
         self.step_csv_file.close()
         self.episode_csv_file.flush()
         self.episode_csv_file.close()
-        self.mqtt_client.disconnect()  # 断开与MQTT服务器的连接
+        self.mqtt_client.disconnect()  # Disconnect from the MQTT broker

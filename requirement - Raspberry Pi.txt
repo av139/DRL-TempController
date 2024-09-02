@@ -1,0 +1,6 @@
+python==3.9.2
+daqhats==1.4.0.8
+numpy==1.24.3
+paho-mqtt==1.6.1
+RPi.GPIO==0.7.0
+rpi-hardware-pwm==0.1.4

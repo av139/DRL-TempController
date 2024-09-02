@@ -1,16 +1,19 @@
 # train.py
 import yaml
+# Import algorithms
 from stable_baselines3 import SAC, PPO, DQN, A2C, DDPG, TD3
 from sb3_contrib import TRPO
+# Import wrappers and callbacks
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.common.callbacks import CallbackList, EvalCallback, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 from env_utils import EnvUtils
+from env_sb3 import SB3Env
 from env_customized import CustomEnv  
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from env_sb3 import SB3Env
 
+# Create interaction environment for sb3 algorithms
 def create_sb3_env(general_config, specific_config, algorithm, action_space_type, temp_config, dist_config, is_eval=False):
     env = SB3Env(
         broker_address=general_config['broker_address'],
@@ -25,31 +28,30 @@ def create_sb3_env(general_config, specific_config, algorithm, action_space_type
         episode_max_steps=specific_config['episode_max_steps'],
         discrete_step=general_config.get('discrete_step', 10),
         temp_config=temp_config,
-        dist_config=dist_config if is_eval else None  # 在训练时dist_config设置为None
+        dist_config=dist_config if is_eval else None  # Set dist_config to None during training, meaning disturbance module is disabled
     )
     return env
 
-# 新增函数：记录Random/Fuzzy/PID的评估数据到TensorBoard
+# Log evaluation data of Random/Fuzzy/PID methods to TensorBoard
 def log_to_tensorboard(writer, tag, scalar_value, global_step):
     writer.add_scalar(tag, scalar_value, global_step)
 
-# 用于进行random/fuzzy/pid三种方法的评估阶段
-# 这里虽然传入了dist_config但好像没有用到
+# Create an evaluation enviroment for Random/Fuzzy/PID methods
 def evaluate_env(env, writer, total_timesteps, n_eval_episodes, dist_config):
     timesteps = 0
     try:
-        while timesteps < total_timesteps:
+        while timesteps < total_timesteps:  # Limit on total timesteps
             episode_lengths = []
             episode_rewards = []
 
-            for _ in range(n_eval_episodes):
+            for _ in range(n_eval_episodes):  # Limit on episode steps
                 print("New Episode")
                 obs, _ = env.reset()
                 done = False
                 episode_length = 0
                 episode_reward = 0
 
-                while not done and timesteps < total_timesteps:
+                while not done and timesteps < total_timesteps:  # Check if the episode should end early due to goal completion
                     obs, reward, done, truncated, info = env.step()
                     timesteps += 1
                     episode_length += 1
@@ -64,14 +66,15 @@ def evaluate_env(env, writer, total_timesteps, n_eval_episodes, dist_config):
 
                 episode_lengths.append(episode_length)
                 episode_rewards.append(episode_reward)
-
+            
+            # Calculate episode reward data
             mean_ep_length = np.mean(episode_lengths)
             mean_reward = np.mean(episode_rewards)
             writer.add_scalar('eval/mean_ep_length', mean_ep_length, timesteps)
             writer.add_scalar('eval/mean_reward', mean_reward, timesteps)
     except KeyboardInterrupt:
         print("Evaluation interrupted by user.")
-        raise  # 重新引发异常，以便外部捕获
+        raise  # Re-raise the exception for external handling
 
 def run_random(config):
     env = None
@@ -81,7 +84,7 @@ def run_random(config):
         temp_config = config['temp_config']
         dist_config = config['dist_config']
         total_timesteps = random_config['total_timesteps']
-        n_eval_episodes = general_config.get('n_eval_episodes', 5)  # 新增：评估的episode数量
+        n_eval_episodes = general_config.get('n_eval_episodes', 5)  
         
         env = CustomEnv(
             broker_address=general_config['broker_address'],
@@ -107,6 +110,7 @@ def run_random(config):
             env.close()
         print("Environment successfully closed.")
 
+# On-Off Controller
 def run_oven(config):
     env = None
     try:
@@ -183,7 +187,7 @@ def run_pid(config):
         temp_config = config['temp_config']
         dist_config = config['dist_config']
         total_timesteps = pid_config['total_timesteps']
-        n_eval_episodes = general_config.get('n_eval_episodes', 5)  # 新增：评估的episode数量
+        n_eval_episodes = general_config.get('n_eval_episodes', 5) 
 
         env = CustomEnv(
             broker_address=general_config['broker_address'],
@@ -194,7 +198,7 @@ def run_pid(config):
             target_temp_max=general_config['target_temp_max'],
             episode_max_steps=pid_config['episode_max_steps'],
             algorithm='PID',
-            kp=pid_config['kp'],
+            kp=pid_config['kp'], # Load PID values from config
             ki=pid_config['ki'],
             kd=pid_config['kd'],
             temp_config=temp_config,
@@ -212,23 +216,27 @@ def run_pid(config):
             env.close()
         print("Environment successfully closed.")
 
+# In theory, the training code can be reused for algorithms supported by sb3.
+# However, to ensure that empty definitions in the config are handled, the default parameters for each algorithm are written explicitly in the code.
+# The following logic is mostly similar.
+
 def run_sac(config):
     sac_config = config['sac']
     general_config = config['general']
     temp_config = config['temp_config']
     dist_config = config['dist_config']
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
-    action_space_type = 'box'  # SAC只支持Box动作空间类型    
+    action_space_type = 'box'  # SAC only supports Box action space type    
     model = None
     env = None
     try:
-        # 创建环境实例
+        # Create environment instance
         env = create_sb3_env(general_config, sac_config, 'SAC', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
-        env = DummyVecEnv([lambda: env])  # 将环境包装为 Vectorized environment
+        env = DummyVecEnv([lambda: env])  # Wrap the environment as a Vectorized environment
 
-        # 创建 SAC 模型实例
-        # 以下参数均为sb3默认参数
+        # Create SAC model instance
+        # The following parameters are all sb3 default parameters
         model = SAC(
             "MlpPolicy", env,
             learning_rate=sac_config.get('learning_rate', 0.0003),
@@ -257,24 +265,25 @@ def run_sac(config):
             device=sac_config.get('device', 'auto')
         )
 
-        # 定义回调
+        # Define evaluation episode callback frequency
         callbacks = []
         if sac_config['eval_freq'] > 0:
             eval_env = create_sb3_env(general_config, sac_config, 'SAC', action_space_type, temp_config, dist_config, is_eval=True)
-            eval_env = Monitor(eval_env)  # 包装评估环境
+            eval_env = Monitor(eval_env)  # Wrap evaluation environment
             eval_env = DummyVecEnv([lambda: eval_env])
             eval_callback = EvalCallback(eval_env, best_model_save_path='./logs_SAC/',
                                          log_path='./logs_SAC/', eval_freq=sac_config['eval_freq'],
                                          deterministic=True, render=False, n_eval_episodes=n_eval_episodes)
             callbacks.append(eval_callback)
 
+        # Define model saving frequency/path/name (convenient for resuming models from checkpoints)
         if sac_config['save_freq'] > 0:
             checkpoint_callback = CheckpointCallback(save_freq=sac_config['save_freq'],
                                                      save_path='./checkpoints_SAC/',
                                                      name_prefix='sac_model')
             callbacks.append(checkpoint_callback)
 
-        # 训练模型
+        # Train the model
         model.learn(total_timesteps=sac_config['total_timesteps'], callback=CallbackList(callbacks), log_interval=1)
 
     except KeyboardInterrupt:
@@ -282,8 +291,8 @@ def run_sac(config):
 
     finally:
         if model:
-            model.save("sac_model")
-        if env:  # 确保env已定义
+            model.save("sac_model")  # Save the model after training completion
+        if env:  # Ensure env is defined to avoid errors
             env.close()
         print("Environment successfully closed.")
 
@@ -293,18 +302,17 @@ def run_ppo(config):
     temp_config = config['temp_config']
     dist_config = config['dist_config']
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
-    # PPO支持Box和Discrete动作空间类型，默认连续问题Box
-    action_space_type = general_config.get('action_space_type', 'box')     
+    action_space_type = general_config.get('action_space_type', 'box')  # PPO supports both Box and Discrete action spaces, defaulting to continuous Box
     model = None
     env = None
     try:
-        # 创建环境实例
+        # Create environment instance
         env = create_sb3_env(general_config, ppo_config, 'PPO', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
-        env = DummyVecEnv([lambda: env])  # 将环境包装为 Vectorized environment
+        env = DummyVecEnv([lambda: env])  # Wrap the environment as a Vectorized environment
 
-        # 创建 PPO 模型实例
-        # 以下参数均为sb3默认参数
+        # Create PPO model instance
+        # The following parameters are all PPO default parameters
         model = PPO(
             "MlpPolicy", env,
             learning_rate=ppo_config.get('learning_rate', 0.0003),
@@ -332,11 +340,11 @@ def run_ppo(config):
             device=ppo_config.get('device', 'auto')
         )
 
-        # 定义回调
+        # Define callbacks
         callbacks = []
         if ppo_config.get('eval_freq', 0) > 0:
             eval_env = create_sb3_env(general_config, ppo_config, 'PPO', action_space_type, temp_config, dist_config, is_eval=True)
-            eval_env = Monitor(eval_env)  # 包装评估环境
+            eval_env = Monitor(eval_env)  # Wrap evaluation environment
             eval_env = DummyVecEnv([lambda: eval_env])
             eval_callback = EvalCallback(eval_env, best_model_save_path='./logs_PPO/',
                                          log_path='./logs_PPO/', eval_freq=ppo_config.get('eval_freq', 5000),
@@ -349,7 +357,7 @@ def run_ppo(config):
                                                      name_prefix='ppo_model')
             callbacks.append(checkpoint_callback)
 
-        # 训练模型
+        # Train the model
         model.learn(total_timesteps=ppo_config.get('total_timesteps', 80000), callback=CallbackList(callbacks), log_interval=1)
 
     except KeyboardInterrupt:
@@ -358,7 +366,7 @@ def run_ppo(config):
     finally:
         if model:
             model.save("ppo_model")
-        if env:  # 确保env已定义
+        if env:  # Ensure env is defined
             env.close()
         print("Environment successfully closed.")
 
@@ -368,7 +376,7 @@ def run_dqn(config):
     temp_config = config['temp_config']
     dist_config = config['dist_config']
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
-    action_space_type = 'discrete'  # DQN只支持Discrete动作空间类型
+    action_space_type = 'discrete'  # DQN only supports Discrete action space type
     model = None
     env = None
     try:
@@ -376,7 +384,7 @@ def run_dqn(config):
         env = Monitor(env)
         env = DummyVecEnv([lambda: env])
 
-        # 以下参数均为sb3默认参数
+        # The following parameters are all DQN default parameters
         model = DQN(
             "MlpPolicy", env,
             learning_rate=dqn_config.get('learning_rate', 0.0001),
@@ -427,7 +435,7 @@ def run_dqn(config):
     finally:
         if model:
             model.save("dqn_model")
-        if env:  # 确保env已定义
+        if env:  
             env.close()
         print("Environment successfully closed.")
 
@@ -437,17 +445,17 @@ def run_a2c(config):
     temp_config = config['temp_config']
     dist_config = config['dist_config']
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
-    # A2C支持Box和Discrete动作空间类型，默认连续问题Box
+    # A2C supports both Box and Discrete action spaces, defaulting to continuous Box
     action_space_type = general_config.get('action_space_type', 'box')
     model = None
     env = None
     try:
-        # 创建环境实例
+        # Create environment instance
         env = create_sb3_env(general_config, a2c_config, 'A2C', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
-        env = DummyVecEnv([lambda: env])  # 将环境包装为 Vectorized environment
+        env = DummyVecEnv([lambda: env])  # Wrap the environment as a Vectorized environment
 
-        # 创建 A2C 模型实例
+        # Create A2C model instance
         model = A2C(
             "MlpPolicy", env,
             learning_rate=a2c_config.get('learning_rate', 0.0007),
@@ -472,11 +480,11 @@ def run_a2c(config):
             device=a2c_config.get('device', 'auto')
         )
 
-        # 定义回调
+        # Define callbacks
         callbacks = []
         if a2c_config.get('eval_freq', 0) > 0:
             eval_env = create_sb3_env(general_config, a2c_config, 'A2C', action_space_type, temp_config, dist_config, is_eval=True)
-            eval_env = Monitor(eval_env)  # 包装评估环境
+            eval_env = Monitor(eval_env)  # Wrap evaluation environment
             eval_env = DummyVecEnv([lambda: eval_env])
             eval_callback = EvalCallback(eval_env, best_model_save_path='./logs_A2C/',
                                          log_path='./logs_A2C/', eval_freq=a2c_config.get('eval_freq', 5000),
@@ -489,7 +497,7 @@ def run_a2c(config):
                                                      name_prefix='a2c_model')
             callbacks.append(checkpoint_callback)
 
-        # 训练模型
+        # Train the model
         model.learn(total_timesteps=a2c_config.get('total_timesteps', 80000), callback=CallbackList(callbacks), log_interval=1)
 
     except KeyboardInterrupt:
@@ -498,7 +506,7 @@ def run_a2c(config):
     finally:
         if model:
             model.save("a2c_model")
-        if env:  # 确保env已定义
+        if env:  # Ensure env is defined
             env.close()
         print("Environment successfully closed.")
 
@@ -508,16 +516,16 @@ def run_ddpg(config):
     temp_config = config['temp_config']
     dist_config = config['dist_config']
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
-    action_space_type = 'box'  # DDPG只支持Box动作空间类型    
+    action_space_type = 'box'  # DDPG only supports Box action space type    
     model = None
     env = None
     try:
-        # 创建环境实例
+        # Create environment instance
         env = create_sb3_env(general_config, ddpg_config, 'DDPG', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
-        env = DummyVecEnv([lambda: env])  # 将环境包装为 Vectorized environment
+        env = DummyVecEnv([lambda: env])  # Wrap the environment as a Vectorized environment
 
-        # 创建 DDPG 模型实例
+        # Create DDPG model instance
         model = DDPG(
             "MlpPolicy", env,
             learning_rate=ddpg_config.get('learning_rate', 0.001),
@@ -539,11 +547,11 @@ def run_ddpg(config):
             device=ddpg_config.get('device', 'auto')
         )
 
-        # 定义回调
+        # Define callbacks
         callbacks = []
         if ddpg_config.get('eval_freq', 0) > 0:
             eval_env = create_sb3_env(general_config, ddpg_config, 'DDPG', action_space_type, temp_config, dist_config, is_eval=True)
-            eval_env = Monitor(eval_env)  # 包装评估环境
+            eval_env = Monitor(eval_env)  # Wrap evaluation environment
             eval_env = DummyVecEnv([lambda: eval_env])
             eval_callback = EvalCallback(eval_env, best_model_save_path='./logs_DDPG/',
                                          log_path='./logs_DDPG/', eval_freq=ddpg_config.get('eval_freq', 5000),
@@ -556,7 +564,7 @@ def run_ddpg(config):
                                                      name_prefix='ddpg_model')
             callbacks.append(checkpoint_callback)
 
-        # 训练模型
+        # Train the model
         model.learn(total_timesteps=ddpg_config.get('total_timesteps', 80000), callback=CallbackList(callbacks), log_interval=1)
 
     except KeyboardInterrupt:
@@ -565,7 +573,7 @@ def run_ddpg(config):
     finally:
         if model:
             model.save("ddpg_model")
-        if env:  # 确保env已定义
+        if env:  # Ensure env is defined
             env.close()
         print("Environment successfully closed.")
 
@@ -575,16 +583,16 @@ def run_td3(config):
     temp_config = config['temp_config']
     dist_config = config['dist_config']
     n_eval_episodes = general_config.get('n_eval_episodes', 5)
-    action_space_type = 'box'  # TD3只支持Box动作空间类型    
+    action_space_type = 'box'  # TD3 only supports Box action space type    
     model = None
     env = None
     try:
-        # 创建环境实例
+        # Create environment instance
         env = create_sb3_env(general_config, td3_config, 'TD3', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
-        env = DummyVecEnv([lambda: env])  # 将环境包装为 Vectorized environment
+        env = DummyVecEnv([lambda: env])  # Wrap the environment as a Vectorized environment
 
-        # 创建 TD3 模型实例
+        # Create TD3 model instance
         model = TD3(
             "MlpPolicy", env,
             learning_rate=td3_config.get('learning_rate', 0.001),
@@ -610,11 +618,11 @@ def run_td3(config):
             device=td3_config.get('device', 'auto')
         )
 
-        # 定义回调
+        # Define callbacks
         callbacks = []
         if td3_config['eval_freq'] > 0:
             eval_env = create_sb3_env(general_config, td3_config, 'TD3', action_space_type, temp_config, dist_config, is_eval=True)
-            eval_env = Monitor(eval_env)  # 包装评估环境
+            eval_env = Monitor(eval_env)  # Wrap evaluation environment
             eval_env = DummyVecEnv([lambda: eval_env])
             eval_callback = EvalCallback(eval_env, best_model_save_path='./logs_TD3/',
                                          log_path='./logs_TD3/', eval_freq=td3_config['eval_freq'],
@@ -627,7 +635,7 @@ def run_td3(config):
                                                      name_prefix='td3_model')
             callbacks.append(checkpoint_callback)
 
-        # 训练模型
+        # Train the model
         model.learn(total_timesteps=td3_config['total_timesteps'], callback=CallbackList(callbacks), log_interval=1)
 
     except KeyboardInterrupt:
@@ -636,7 +644,7 @@ def run_td3(config):
     finally:
         if model:
             model.save("td3_model")
-        if env:  # 确保env已定义
+        if env:  # Ensure env is defined
             env.close()
         print("Environment successfully closed.")
 
@@ -650,12 +658,12 @@ def run_trpo(config):
     model = None
     env = None
     try:
-        # 创建环境实例
+        # Create environment instance
         env = create_sb3_env(general_config, trpo_config, 'TRPO', action_space_type, temp_config, dist_config, is_eval=False)
         env = Monitor(env)
-        env = DummyVecEnv([lambda: env])  # 将环境包装为 Vectorized environment
+        env = DummyVecEnv([lambda: env])  # Wrap the environment as a Vectorized environment
 
-        # 创建 TRPO 模型实例
+        # Create TRPO model instance
         model = TRPO(
             "MlpPolicy", env,
             learning_rate=trpo_config.get('learning_rate', 0.001),
@@ -683,11 +691,11 @@ def run_trpo(config):
             device=trpo_config.get('device', 'auto')
         )
 
-        # 定义回调
+        # Define callbacks
         callbacks = []
         if trpo_config.get('eval_freq', 0) > 0:
             eval_env = create_sb3_env(general_config, trpo_config, 'TRPO', action_space_type, temp_config, dist_config, is_eval=True)
-            eval_env = Monitor(eval_env)  # 包装评估环境
+            eval_env = Monitor(eval_env)  # Wrap evaluation environment
             eval_env = DummyVecEnv([lambda: eval_env])
             eval_callback = EvalCallback(eval_env, best_model_save_path='./logs_TRPO/',
                                          log_path='./logs_TRPO/', eval_freq=trpo_config.get('eval_freq', 5000),
@@ -700,7 +708,7 @@ def run_trpo(config):
                                                      name_prefix='trpo_model')
             callbacks.append(checkpoint_callback)
 
-        # 训练模型
+        # Train the model
         model.learn(total_timesteps=trpo_config.get('total_timesteps', 80000), callback=CallbackList(callbacks), log_interval=1)
 
     except KeyboardInterrupt:
@@ -709,24 +717,26 @@ def run_trpo(config):
     finally:
         if model:
             model.save("trpo_model")
-        if env:  # 确保env已定义
+        if env:  # Ensure env is defined
             env.close()
         print("Environment successfully closed.")        
 
 def main():
+    # Load config
     with open('config.yaml', 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
     
     algorithm = config['general']['algorithm']
     action_space_type = config['general'].get('action_space_type', 'box')
     
-    discrete_step = config['general'].get('discrete_step', 10)  # 新增读取离散步长
+    discrete_step = config['general'].get('discrete_step', 10)  # Read discrete step size
     
     dist_config = config.get('dist_config', None)
 
-    if 200 % discrete_step != 0:  # 验证总范围200%是否能被步长整除
+    if 200 % discrete_step != 0:  # Verify that the total range of 200% can be divided by the step size
         raise ValueError(f"discrete_step {discrete_step} is invalid. 200% range must be divisible by the step size.")    
 
+    # Select algorithm and check action space settings
     if algorithm == 'PID':
         run_pid(config)
     elif algorithm == 'Fuzzy':
